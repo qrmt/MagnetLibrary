@@ -7,7 +7,11 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreLocation/CoreLocation.h>
 
-@interface BLMagnetometer : NSObject
+@interface BLMagnetometer : NSObject <CLLocationManagerDelegate>
 
+- (NSDictionary *)latestMagnetometerData;
+- (void)startMagnetometerUpdates;
+- (void)stopMagnetometerUpdates;
 @end
