@@ -13,6 +13,7 @@
 @property (nonatomic, strong) NSDictionary *latestData;
 
 @property (nonatomic, retain) CLLocationManager *locationManager;
+@property (nonatomic, strong) NSMutableArray *smoothingArray;
 
 @end
 
@@ -31,6 +32,7 @@
                     @"total": @0
                     };
     
+    
     // check if the hardware has a compass
     if ([CLLocationManager headingAvailable] == NO) {
         // No compass is available. This application cannot function without a compass,
@@ -44,11 +46,24 @@
         self.locationManager.delegate = self;
     }
     
-    
     return self;
 }
 
+- (void)initializeLatest {
+    NSMutableArray *array = [[NSMutableArray alloc] init];
+    for (int i = 0; i < 10; i++) {
+        NSMutableArray *data = [[NSMutableArray alloc] init];
+        for (int j = 0; i < 3; i++) {
+            [data addObject:@0];
+        }
+        [array addObject:data];
+    }
+}
+
+
 - (void)startMagnetometerUpdates {
+    // Initialize smoothing array
+    //[self initializeLatest];
     // start the compass
     [self.locationManager startUpdatingHeading];
 }
@@ -61,22 +76,61 @@
 - (void)locationManager:(CLLocationManager *)manager didUpdateHeading:(CLHeading *)heading {
     // Update the labels with the raw x, y, and z values.
     
+    /*
     float last_x = [_latestData[@"x"] floatValue];
     float last_y = [_latestData[@"y"] floatValue];
     float last_z = [_latestData[@"z"] floatValue];
     float rotate_treshold = 50;
     
-    BOOL rotating = NO;
     
-    if (fabs(last_x - heading.x) > rotate_treshold || fabs(last_x - heading.y) > rotate_treshold) {
+    float smoothed_x, smoothed_y, smoothed_z = 0.0f;
+    
+    for (int i = 0; i < 10; i++) {
+        smoothed_x += [_smoothingArray[i][0] floatValue];
+        smoothed_y += [_smoothingArray[i][1] floatValue];
+        smoothed_z += [_smoothingArray[i][2] floatValue];
+        
+        NSLog(@"smoothed_y_%d = %f", i, smoothed_y);
+        
+    }
+    
+    
+    smoothed_x = smoothed_x / 10;
+    smoothed_y = smoothed_y / 10;
+    smoothed_z = smoothed_z / 10;
+    
+    for (int i = 0; i < 9; i++) {
+        _smoothingArray[i+1][0] = _smoothingArray[i][0];
+        _smoothingArray[i+1][1] = _smoothingArray[i][1];
+        _smoothingArray[i+1][2] = _smoothingArray[i][2];
+    }
+    
+    _smoothingArray[0][0] = [NSNumber numberWithFloat:heading.x];
+    _smoothingArray[0][1] = [NSNumber numberWithFloat:heading.y];
+    _smoothingArray[0][2] = [NSNumber numberWithFloat:heading.z];
+    
+    //NSLog(@"smoothed: x: %.2f, y: %.2f, z: %.2f", smoothed_x, smoothed_y, smoothed_z);
+    //NSLog(@"new: x: %.2f, y: %.2f, z: %.2f", heading.x, heading.y, heading.z);
+
+    
+    
+    
+    if ((fabs(last_x - smoothed_x) > rotate_treshold || fabs(last_x - smoothed_y) > rotate_treshold) &&
+        (smoothed_x > 20 && smoothed_y > 20))
+    {
         rotating = YES;
     }
+    
+    //NSLog(@"Rotating: %f", rotating);
+     */
+    
+    BOOL rotating = NO;
         
     float x, y, z;
     if (rotating) {
-        x = last_x;
-        y = last_y;
-        z = last_z;
+        //x = last_x;
+        //y = last_y;
+        //z = last_z;
     } else {
         x = heading.x;
         y = heading.y;
