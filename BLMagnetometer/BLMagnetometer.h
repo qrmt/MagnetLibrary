@@ -11,7 +11,9 @@
 
 @interface BLMagnetometer : NSObject <CLLocationManagerDelegate>
 
-- (NSDictionary *)latestMagnetometerData;
+- (NSArray *)latestMagnetometerData;
 - (void)startMagnetometerUpdates;
 - (void)stopMagnetometerUpdates;
+- (void)calibrate;
+
 @end

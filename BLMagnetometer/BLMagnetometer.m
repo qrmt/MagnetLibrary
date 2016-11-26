@@ -10,10 +10,12 @@
 
 @interface BLMagnetometer ()
 
-@property (nonatomic, strong) NSDictionary *latestData;
-
 @property (nonatomic, retain) CLLocationManager *locationManager;
 @property (nonatomic, strong) NSMutableArray *smoothingArray;
+@property (nonatomic, strong) NSArray *latestSmoothedData;
+@property (nonatomic, strong) NSArray *latestData;
+@property (nonatomic, strong) NSArray *calibrationData;
+
 
 @end
 
@@ -25,13 +27,6 @@
     
     // setup the location manager
     _locationManager = [[CLLocationManager alloc] init];
-    _latestData = @{
-                    @"x": @0,
-                    @"y": @0,
-                    @"z": @0,
-                    @"total": @0
-                    };
-    
     
     // check if the hardware has a compass
     if ([CLLocationManager headingAvailable] == NO) {
@@ -46,6 +41,15 @@
         self.locationManager.delegate = self;
     }
     
+    // Latest data: X, Y, Z, Total, Direction
+    _latestSmoothedData = @[@(0),@(0),@(0),@(0),@(0)];
+    
+    // Latest raw values from magnetometer, used for calibration
+    _latestData = @[@(0),@(0),@(0)];
+    
+    // Calibration values
+    _calibrationData = [NSArray arrayWithObjects:@(0), @(0), @(0), nil];
+    
     return self;
 }
 
@@ -53,17 +57,18 @@
     NSMutableArray *array = [[NSMutableArray alloc] init];
     for (int i = 0; i < 10; i++) {
         NSMutableArray *data = [[NSMutableArray alloc] init];
-        for (int j = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
             [data addObject:@0];
         }
         [array addObject:data];
     }
+    _smoothingArray = array;
 }
 
 
 - (void)startMagnetometerUpdates {
     // Initialize smoothing array
-    //[self initializeLatest];
+    [self initializeLatest];
     // start the compass
     [self.locationManager startUpdatingHeading];
 }
@@ -76,22 +81,66 @@
 - (void)locationManager:(CLLocationManager *)manager didUpdateHeading:(CLHeading *)heading {
     // Update the labels with the raw x, y, and z values.
     
-    /*
-    float last_x = [_latestData[@"x"] floatValue];
-    float last_y = [_latestData[@"y"] floatValue];
-    float last_z = [_latestData[@"z"] floatValue];
-    float rotate_treshold = 50;
+    _latestData = [NSArray arrayWithObjects:@(heading.x), @(heading.y), @(heading.z), nil];
+    
+    [self updateSmoothedDataWithX:heading.x Y:heading.y Z:heading.z];
+    
+    NSArray *smoothedValues = [self smoothedData];
     
     
-    float smoothed_x, smoothed_y, smoothed_z = 0.0f;
+    float smoothed_x = [smoothedValues[0] floatValue];
+    float smoothed_y = [smoothedValues[1] floatValue];
+    float smoothed_z = [smoothedValues[2] floatValue];
+    
+    float calibration_x = [_calibrationData[0] floatValue];
+    float calibration_y = [_calibrationData[1] floatValue];
+    float calibration_z = [_calibrationData[2] floatValue];
+    
+    
+    //NSLog(@"smoothed: x: %.2f, y: %.2f, z: %.2f", smoothed_x, smoothed_y, smoothed_z);
+    //NSLog(@"new: x: %.2f, y: %.2f, z: %.2f", heading.x, heading.y, heading.z);
+    
+    int calibration_sign_x = signum(calibration_x);
+    int calibration_sign_y = signum(calibration_y);
+    
+    
+    int smooth_x_sign = signum(smoothed_x);
+    int smooth_y_sign = signum(smoothed_y);
+    
+    int direction = 0; // Default rotation based on calibration
+    
+    
+    if (calibration_sign_x != smooth_x_sign && calibration_sign_y == smooth_y_sign) {
+        // Rotation towards ??
+        direction = 1;
+    } else if (calibration_sign_x == smooth_x_sign && calibration_sign_y != smooth_y_sign) {
+        // Rotation towards ??
+        direction = 2;
+    }
+    
+    NSLog(@"Direction = %d", direction);
+    NSLog(@"X, Y, Z:  %.2f  %.2f  %.2f", heading.x, heading.y, heading.z);
+    
+    
+    float calibrated_x = smoothed_x - calibration_x;
+    float calibrated_y = smoothed_y - calibration_y;
+    float calibrated_z = smoothed_z - calibration_z;
+    
+    double total = pow(calibrated_x, 2) + pow(calibrated_y, 2);
+    total = sqrt(total);
+    
+    _latestSmoothedData = @[@(calibrated_x), @(calibrated_y), @(calibrated_z), @(total), @(direction)];
+}
+
+- (NSArray *)smoothedData {
+    float smoothed_x = 0.0f;
+    float smoothed_y = 0.0f;
+    float smoothed_z = 0.0f;
     
     for (int i = 0; i < 10; i++) {
         smoothed_x += [_smoothingArray[i][0] floatValue];
         smoothed_y += [_smoothingArray[i][1] floatValue];
         smoothed_z += [_smoothingArray[i][2] floatValue];
-        
-        NSLog(@"smoothed_y_%d = %f", i, smoothed_y);
-        
     }
     
     
@@ -99,56 +148,24 @@
     smoothed_y = smoothed_y / 10;
     smoothed_z = smoothed_z / 10;
     
+    
+    return [NSArray arrayWithObjects:@(smoothed_x), @(smoothed_y), @(smoothed_z), nil];
+}
+
+- (void)updateSmoothedDataWithX:(float)x Y:(float)y Z:(float)z {
     for (int i = 0; i < 9; i++) {
         _smoothingArray[i+1][0] = _smoothingArray[i][0];
         _smoothingArray[i+1][1] = _smoothingArray[i][1];
         _smoothingArray[i+1][2] = _smoothingArray[i][2];
     }
     
-    _smoothingArray[0][0] = [NSNumber numberWithFloat:heading.x];
-    _smoothingArray[0][1] = [NSNumber numberWithFloat:heading.y];
-    _smoothingArray[0][2] = [NSNumber numberWithFloat:heading.z];
-    
-    //NSLog(@"smoothed: x: %.2f, y: %.2f, z: %.2f", smoothed_x, smoothed_y, smoothed_z);
-    //NSLog(@"new: x: %.2f, y: %.2f, z: %.2f", heading.x, heading.y, heading.z);
-
-    
-    
-    
-    if ((fabs(last_x - smoothed_x) > rotate_treshold || fabs(last_x - smoothed_y) > rotate_treshold) &&
-        (smoothed_x > 20 && smoothed_y > 20))
-    {
-        rotating = YES;
-    }
-    
-    //NSLog(@"Rotating: %f", rotating);
-     */
-    
-    BOOL rotating = NO;
-        
-    float x, y, z;
-    if (rotating) {
-        //x = last_x;
-        //y = last_y;
-        //z = last_z;
-    } else {
-        x = heading.x;
-        y = heading.y;
-        z = heading.z;
-    }
-    
-    double total = pow(heading.x, 2) + pow(heading.y, 2);
-    total = sqrt(total);
-    
-    _latestData = @{
-                    @"x": @(x),
-                    @"y": @(y),
-                    @"z": @(z),
-                    @"total": @(total),
-                    @"rotating": @(rotating)
-                    };
+    _smoothingArray[0][0] = [NSNumber numberWithFloat:x];
+    _smoothingArray[0][1] = [NSNumber numberWithFloat:y];
+    _smoothingArray[0][2] = [NSNumber numberWithFloat:z];
     
 }
+
+#pragma mark -
 
 // This delegate method is invoked when the location managed encounters an error condition.
 - (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error {
@@ -160,8 +177,22 @@
     }
 }
 
-- (NSDictionary *)latestMagnetometerData {
-    return _latestData;
+#pragma mark -
+
+- (NSArray *)latestMagnetometerData {
+    return _latestSmoothedData;
 }
+
+- (void)calibrate {
+    float calibration_x = [_latestData[0] floatValue];
+    float calibration_y = [_latestData[1] floatValue];
+    float calibration_z = [_latestData[2] floatValue];
+    
+    _calibrationData = [NSArray arrayWithObjects:@(calibration_x), @(calibration_y), @(calibration_z), nil];
+}
+
+// Sign function
+
+int signum(float n) { return (n < 0) ? -1 : (n > 0) ? +1 : 0; }
 
 @end
