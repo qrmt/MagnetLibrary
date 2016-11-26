@@ -118,8 +118,8 @@
         direction = 2;
     }
     
-    NSLog(@"Direction = %d", direction);
-    NSLog(@"X, Y, Z:  %.2f  %.2f  %.2f", heading.x, heading.y, heading.z);
+    //NSLog(@"Direction = %d", direction);
+    //NSLog(@"X, Y, Z:  %.2f  %.2f  %.2f", heading.x, heading.y, heading.z);
     
     
     float calibrated_x = smoothed_x - calibration_x;
